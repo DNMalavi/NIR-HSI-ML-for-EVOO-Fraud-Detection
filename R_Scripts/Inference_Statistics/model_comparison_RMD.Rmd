@@ -1,0 +1,427 @@
+---
+title: "Comparison of Model Performance for Classification of Olive Oils"
+author: "Derick Malavi"
+date: "2024-04-26"
+output:
+  html_document:
+    toc: true
+    number_sections: true
+    fontsize: 10pts
+    theme: 'darkly'
+    css: css_style_3
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	warning = FALSE,
+	comment = ""
+)
+```
+
+# Load Libraries
+
+```{r message=FALSE, warning=FALSE}
+suppressWarnings({library(readr)
+library(readxl)
+library(car)
+library(PMCMRplus)
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(skimr)
+library(janitor)
+library(lattice)})
+
+```
+
+-   The goal is to compare models the performance of binary classification models: PLS-DA, KNN, RF, SVM, and Neural Networks Models using the Matthews correlation coefficient (MCC) values.
+
+-   Why MCC? The MCC is particularly useful for its ability to deal with class imbalances, providing a single number that gives a comprehensive picture of the model's effectiveness. It comprehensively includes all the observations from the confusion matrix TN, TP, FN and FP.
+
+# Import and check data
+
+```{r}
+model_data<-read_excel("Compiled_Model_1SE.xlsx")
+model_data<-clean_names(model_data)
+
+#Convert the pre-processing and models to factors
+model_data$pre_processing<-as.factor(model_data$pre_processing)
+model_data$model<-as.factor(model_data$model)
+model_data$model_preprocessing<-as.factor(model_data$model_preprocessing)
+head(model_data)
+colnames(model_data)
+str(model_data)
+```
+
+# Check for normality of data
+
+## Plot a histogram to visualize normality
+
+```{r}
+histogram(~mcc, data = model_data,main = "", xlab = "MCC")
+```
+
+-   Histogram shows the data distribution is not normal
+
+## Plot qqnorm and qqline plots
+
+```{r}
+q1<-qqnorm(model_data$mcc, pch =8)
+qqline(model_data$mcc, col="blue",lwd = 2)
+```
+
+-   The data points fall out of the qqline plot
+
+## Confirm normality with Shapiro-Wilk Test
+
+```{r}
+shapiro.test(model_data$mcc)
+```
+
+-   The p value from the Shapiro_Wilk normality test is 3.998e-10. The data does not meet the assumption of normality. We, therefore, reject the null hypothesis.
+
+## Check for homogeinity of variance with Levene Test
+
+```{r}
+lev_test<-leveneTest(mcc~model, data = model_data) # for the model type
+lev_test_2<-leveneTest(mcc~pre_processing, data = model_data) # for pre-processing method
+leve_test_3<-leveneTest(mcc~model_preprocessing, data = model_data)
+print(lev_test)
+print(lev_test_2)
+print(leve_test_3)
+```
+
+\*\* Based on the MCC values and the Levene Test, the assumption of equal variance is violated
+
+## Perform Kruskall-Wallis Test due to violation of normality
+
+```{r}
+kruskalTest(mcc~model, data = model_data)
+kruskalTest(mcc~pre_processing, data = model_data)
+kruskalTest(mcc~model_preprocessing, data = model_data)
+```
+
+### Perform non-parametric two way ANOVA-Aligned Rank Transform (ART) Analysis of Variance (ART ANOVA)
+
+-   This is to check the interaction between model type and spectral pre-processing on their effect on MCC
+
+```{r}
+library(ARTool)
+```
+
+#### Aligned Rank Transform (ART) ANOVA
+
+```{r}
+# Apply the aligned rank transform for interactions
+model_interac<- art(mcc ~ model * pre_processing, data = model_data)
+summary(model_interac)
+# ANOVA on the transformed data
+anova_results <- anova(model_interac)
+# Display the ANOVA results for interactions
+print(anova_results)
+
+```
+
+-   From the results, the model type is the only factor that affects the MCC value (p \< 0.05)
+-   There is no significant interaction effect between model type and pre-processing method on MCC scores (p \< 0.05). The effectiveness of a model does not depend on the pre-processing method used
+
+#### Checking for differences within the models
+
+```{r}
+library(dunn.test)
+dunn_res <- dunn.test(model_data$mcc, model_data$model, method="bonferroni")
+dunn_res$comparisons
+```
+
+-   ANN, SVM, PLS-DA, and RF significantly yield better results compared to Naive Bayes Method
+
+#### Check model performance (model and pre_processing)
+
+```{r}
+model_comb<-kruskalTest(model_data$mcc, model_data$model_preprocessing, 
+                        method = "bonferroni")
+print(model_comb)
+```
+
+-   Specific model in combination with a specific prepossessing techniques do not influence model performance (p = 0.5613)
+
+### Box plots for visualization
+
+#### Box plot for the model types
+
+```{r}
+library(patchwork)
+p1<-ggplot(data = model_data,mapping = aes(x=model, y = mcc))+
+  geom_boxplot(aes(fill= model))+labs(x = "Model", y = "MCC (Full-Spectra)")+theme_bw()+
+  theme(axis.title.x = element_text(color = "black",size= 9),
+        axis.text.x = element_text(color = "black", angle = 90, size= 8),
+        axis.text.y = element_text(color = "black",size =8),
+        axis.title.y = element_text(color = "black",size =9),
+        panel.grid.major = element_blank(),panel.grid.minor = element_blank(),
+        legend.position = "right",
+        legend.key.size = unit(0.3, "cm"),
+        legend.title = element_text(color = "black",size = 9),
+        legend.text = element_text(size = 8),
+        legend.spacing.y = unit(0.03, "cm"),
+        legend.margin = margin(0.5, 0.5, 0.5, 0.5, "pt"))+
+  scale_fill_brewer(palette = "Set1")+ stat_summary(fun=mean, geom="point", shape=18, size=2, color="red")
+
+p1
+```
+
+#### Box plot for the pre-processing techniques
+
+```{r}
+ my_colors <- c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", 
+               "#e377c2", "#7f7f7f", "#bcbd22", "#17becf", "#1a55FF", "#9c8305")
+ 
+ p2<-ggplot(data = model_data,mapping = aes(x=pre_processing, y = mcc))+
+  geom_boxplot(aes(fill = pre_processing))+labs(x = "Pre-processing", y = "MCC (Full-Spectra)")+
+  theme_bw()+
+  theme(axis.title.x = element_text(color = "black", size =9),
+        axis.title.y = element_text(colour = "black", size =9),
+        axis.text.y = element_text(color = "black",size =8),
+        axis.text.x = element_text(color = "black",size = 8,angle = 90),
+        panel.grid.major = element_blank(),panel.grid.minor = element_blank(),
+        legend.position = "right")+scale_color_manual(values = my_colors)+
+   scale_fill_manual(values = my_colors)+ theme(
+  legend.key.size = unit(0.3, "cm"),  legend.text = element_text(size = 8),  
+  legend.spacing.y = unit(0.03, "cm"),
+  legend.margin = margin(0.5, 0.5, 0.5, 0.5, "pt"))+ 
+   theme(legend.title = element_text(color = "black",size = 9),
+         aspect.ratio = 0.5)+
+   stat_summary(fun=mean, geom="point", shape=18, size=2, color="red")
+ p2
+```
+
+## Models based on variable reduction
+
+```{r}
+#Load data 
+model_data_2<-read_excel("Compiled_Model_1SE.xlsx",sheet = "Sheet2")
+model_data_2<-clean_names(model_data_2)
+colnames(model_data_2)
+#Convert the pre-processing and models to factors
+model_data_2$pre_processing<-as.factor(model_data_2$pre_processing)
+model_data_2$model<-as.factor(model_data_2$model)
+model_data_2$model_preprocessing<-as.factor(model_data_2$model_preprocessing)
+```
+
+## Check normality and equality of variance
+
+```{r}
+histogram(~mcc, data = model_data_2, col = "lightblue")
+qqnorm(model_data_2$mcc)
+qqline(model_data_2$mcc, col = "red")
+```
+
+-   The plots reveal the data is not normal
+
+## Confirm with the statistical tests
+
+```{r}
+#Normality
+shapiro.test(model_data_2$mcc)
+
+#Homogeneity of variance
+
+leveneTest(mcc~model, data = model_data_2)
+leveneTest(mcc~pre_processing, data = model_data_2)
+leveneTest(mcc~model_preprocessing, data = model_data_2)
+```
+
+-   The assumption of normality is violated. Reject the null hypothesis. Therefore, opt for non-parametric tests ANOVA
+
+#### Perform Aligned Rank Transform (ART) to check for interactions
+
+```{r}
+# Apply the aligned rank transform for interactions
+model_interac_2<- art(mcc ~ model * pre_processing, data = model_data_2)
+summary(model_interac_2)
+# ANOVA on the transformed data
+anova_results_2 <- anova(model_interac_2)
+# Display the ANOVA results for interactions
+print(anova_results_2)
+```
+
+-   The models influence the MCC results after variable reduction
+
+#### Perform Dunn Test to check where the differences lie within the models
+
+```{r}
+dunn_res_2 <- dunn.test(model_data_2$mcc, model_data_2$model, method="bonferroni")
+dunn_res_2$comparisons
+```
+
+-   Both PLS-DA and ANN models outperform KNN, RF, and SVM models.
+
+## Plotting
+
+### Models from variable selection
+
+```{r}
+p3<-ggplot(data = model_data_2,mapping = aes(x=model, y = mcc))+
+  geom_boxplot(aes(fill= model))+labs(x = "Model", y = "MCC (Variable Selection)")+
+  theme_bw()+
+  theme(axis.title.x = element_text(color = "black",size = 9),
+        axis.text.x = element_text(color = "black", angle = 90, size = 8),
+        axis.text.y = element_text(color = "black",size = 8),
+        axis.title.y = element_text(color = "black", size = 9),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "right",legend.key.size = unit(0.3, "cm"),
+        legend.title = element_text(color = "black",size = 9),
+        legend.text = element_text(size = 8),
+        legend.spacing.y = unit(0.03, "cm"),
+        legend.margin = margin(0.5, 0.5, 0.5, 0.5, "pt"))+
+  scale_fill_brewer(palette = "Pastel1")+
+  stat_summary(fun = mean,geom = "point",shape = 18, size = 2, color = "red")
+
+p3
+```
+
+### Spectral Pre-processing vs MCC after variable reduction
+
+```{r}
+p4<-ggplot(data = model_data_2,mapping = aes(x=pre_processing, y = mcc))+
+  geom_boxplot(aes(fill = pre_processing))+labs(x = "Pre-processing", y = "MCC (Variable Selection)")+
+  theme_bw()+
+  theme(axis.title.x = element_text(color = "black", size = 9),
+        axis.title.y = element_text(color = "black", size = 9),
+        axis.text.x = element_text(color = "black",angle = 90, size = 8),
+        axis.text.y = element_text(color = "black",size = 8),
+        panel.grid.major = element_blank(),panel.grid.minor = element_blank(),
+        legend.position = "right")+ 
+  theme(legend.key.size = unit(0.3, "cm"),
+        legend.title = element_text(color = "black",size = 9),
+        legend.text = element_text(size = 8),
+        legend.spacing.y = unit(0.03, "cm"),
+        legend.margin = margin(0.5, 0.5, 0.5, 0.5, "pt"),aspect.ratio = 0.5)+ 
+  stat_summary(fun=mean, geom="point", shape=18, size=2, color="red")+
+  scale_fill_brewer(palette = "Set3")
+p4
+```
+
+### Patch all the box plots
+
+## Check the performance of each model with and without variable selection using Wilcoxon Signed Rank test since the samples are paired
+
+```{r}
+# Overall model performance
+#Load data
+model_data_3<-read_excel("Compiled_Model_1SE.xlsx",sheet = "Sheet3")
+model_data_3<-clean_names(model_data_3)
+colnames(model_data_3)
+#Convert the pre-processing and models to factors
+model_data_3$pre_processing<-as.factor(model_data_3$pre_processing)
+model_data_3$model<-as.factor(model_data_3$model)
+model_data_3$model_preprocessing<-as.factor(model_data_3$model_preprocessing)
+```
+
+-   All the test comparison will be based on the 'model type' considering that it is the main significant factor influencing Matthews Correlation Coefficient (MCC).
+
+-   Additionally, normality assumption is violated, we will therefore proceed with non-parametric t-tests
+
+## Overall models with and without variable selection
+
+```{r}
+overall_wilcox_test<-wilcox.test(model_data_3$mcc_1,model_data_3$mcc_2,
+                                 paired = TRUE, alternative = "two.sided")
+print(overall_wilcox_test)
+wilcox.test(model_data_3$mcc_1,model_data_3$mcc_2,
+                                 paired = TRUE, alternative = "greater")
+wilcox.test(model_data_3$mcc_1,model_data_3$mcc_2,
+                                 paired = TRUE, alternative = "less")
+```
+
+-   The p value = 0.4237. Therefore, there is no significant difference in overall model performance before and after variable reduction.
+
+## PLS-DA model with and without variable selection
+
+```{r}
+pls_data<-subset(model_data_3,model == "PLS-DA", 
+                 select = c("model","mcc_1","mcc_2"))
+head(pls_data)
+dim(pls_data)
+
+plsda_wilcox_test<-wilcox.test(pls_data$mcc_1,pls_data$mcc_2,
+                                paired = TRUE, alternative = "two.sided")
+print(plsda_wilcox_test)
+mean(pls_data$mcc_1)
+mean(pls_data$mcc_2)
+```
+
+-   PLS-DA model with full-spectra performs better than with variable selection
+
+## K-Nearest Neighbor Model with and without Variable Selection
+
+```{r}
+knn_data<-subset(model_data_3,model == "KNN", 
+                 select = c("model","mcc_1","mcc_2"))
+head(knn_data)
+dim(knn_data)
+
+knn_wilcox_test<-wilcox.test(knn_data$mcc_1,knn_data$mcc_2,
+                                paired = TRUE, alternative = "two.sided")
+print(knn_wilcox_test)
+mean(knn_data$mcc_1)
+mean(knn_data$mcc_2)
+```
+
+-   There is no significant difference in performance in the KNN models with and without variable selection
+
+## Random Forest Model with and without Variable Selection
+
+```{r}
+RF_data<-subset(model_data_3,model == "RF", 
+                 select = c("model","mcc_1","mcc_2"))
+head(RF_data)
+dim(RF_data)
+
+RF_wilcox_test<-wilcox.test(RF_data$mcc_1,RF_data$mcc_2,
+                                paired = TRUE, alternative = "two.sided")
+print(RF_wilcox_test)
+mean(RF_data$mcc_1)
+mean(RF_data$mcc_2)
+```
+
+-   There is no significant difference in performance in the RF models with and without variable selection
+
+## SVM Model with and without Variable Selection
+
+```{r}
+SVM_data<-subset(model_data_3,model == "SVM", 
+                 select = c("model","mcc_1","mcc_2"))
+head(SVM_data)
+dim(SVM_data)
+
+SVM_wilcox_test<-wilcox.test(SVM_data$mcc_1,SVM_data$mcc_2,
+                                paired = TRUE, alternative = "two.sided")
+print(SVM_wilcox_test)
+mean(SVM_data$mcc_1)
+mean(SVM_data$mcc_2)
+```
+
+-   There is no significant difference in performance in the SVM models with and without variable selection
+
+## Artificial Neural Network Model with and without Variable Selection
+
+```{r}
+ANN_data<-subset(model_data_3,model == "ANN", 
+                 select = c("model","mcc_1","mcc_2"))
+head(ANN_data)
+dim(ANN_data)
+
+ANN_wilcox_test<-wilcox.test(ANN_data$mcc_1,ANN_data$mcc_2,
+                                paired = TRUE, alternative = "two.sided")
+print(ANN_wilcox_test)
+mean(ANN_data$mcc_1)
+mean(ANN_data$mcc_2)
+```
+
+-   NNET model performance does not differ either with or without variable selection
+
+## Reference
+
+-   Wobbrock, J. O., Findlater, L., Gergle, D., and Higgins, J. J. (2011). The aligned rank transform for nonparametric factorial analyses using only ANOVA procedures. Proceedings of the ACM Conference on Human Factors in Computing Systems (CHI '11). Vancouver, British Columbia (May 7–12, 2011). New York: ACM Press, pp. 143–146. doi: 10.1145/1978942.1978963
