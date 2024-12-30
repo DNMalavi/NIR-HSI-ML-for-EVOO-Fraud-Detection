@@ -48,6 +48,8 @@ Model Performance: The models achieved impressive accuracy rates in classifying 
 Combining NIR-HSI with machine learning offers an effective, non-destructive solution for detecting EVOO adulteration, potentially aiding in fraud prevention within the olive oil industry.
 The link to the publication: https://www.sciencedirect.com/science/article/pii/S2665927124002399 
 
+The github page link to the statistical analyis for model comparison can be found here: https://dnmalavi.github.io/NIR-HSI-ML-for-EVOO-Fraud-Detection/ 
+
 
 ```python
 
