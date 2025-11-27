@@ -1,0 +1,13 @@
+name: EVOO_Shiny_App
+title: EVOO_Shiny_App
+username: dmalavi
+account: dmalavi
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 16153496
+bundleId: 11223510
+url: https://dmalavi.shinyapps.io/EVOO_Shiny_App/
+version: 1
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: oleasense_feedback_log.csv|Raw_A.xlsx|test_set_oil.csv
