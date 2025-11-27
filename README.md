@@ -66,10 +66,9 @@ Models were assessed using repeated cross-validation and external test sets.
 
 ### **Variable Selection**
 
-Feature selection algorithms (Boruta, GA-RFE):
+Models based on **Top 20** most important variables:
 
-- Did **not** significantly reduce accuracy.  
-- Full-spectrum models performed best overall.  
+- Did **not** significantly reduce accuracy.    
 - Selected wavelengths provide insights for designing future multispectral sensors.
 
 ---
