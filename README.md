@@ -93,6 +93,8 @@ https://www.sciencedirect.com/science/article/pii/S2665927124002399
 /docs/ Supporting figures and supplementary files
 README.md
 
+The github page link to the statistical analyis for model comparison can be found here: https://dnmalavi.github.io/NIR-HSI-ML-for-EVOO-Fraud-Detection/ 
+
 
 ---
 
